@@ -1,16 +1,7 @@
 use dotenv::from_path;
 use std::env;
 
-const KEYS: [&str; 8] = [
-    "CONSUMER_NAME",
-    "RABBIT_HOST",
-    "RABBIT_PORT",
-    "RABBIT_USER",
-    "RABBIT_PASSWORD",
-    "RABBIT_EXCHANGE",
-    "RABBIT_QUEUE",
-    "SUPPORTED_CONTENT_TYPE",
-];
+const KEYS: [&str; 1] = ["DATABASE_URL"];
 
 pub fn load_env() -> bool {
     let root_dir = env::current_dir().expect("Failed to get current directory");

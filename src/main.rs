@@ -17,6 +17,9 @@ async fn main() -> std::io::Result<()> {
         std::process::exit(1);
     }
 
+    // Create a connection pool to the database
+    let pool = config::establish_connection();
+
     // Start ActiveX web server
     HttpServer::new(|| App::new().service(greet))
         .bind(("127.0.0.1", 1234))?
