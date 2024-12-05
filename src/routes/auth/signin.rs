@@ -62,7 +62,7 @@ pub async fn route(
     let recovered_address = recovered_address.unwrap();
 
     // Check whether the recovered address is the same as the address in the request
-    // NOTE: Ethereum addresses are case-insensit// NOTE: Ethereum addresses are case-insensitive
+    // NOTE: Ethereum addresses are case-insensit
     // (https://ethereum.stackexchange.com/questions/2045/is-ethereum-wallet-address-case-sensitive)
     if address.to_lowercase() != recovered_address.to_string().to_lowercase() {
         return Ok(web::Json(SignInResponse::Error {
