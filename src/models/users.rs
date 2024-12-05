@@ -1,8 +1,8 @@
-use crate::schema::users;
 use diesel::prelude::*;
 
 #[derive(Queryable, Insertable)]
-#[table_name = "users"]
+#[diesel(table_name = crate::schema::users)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct User {
     pub id: i32,
     pub primary_account: String,
