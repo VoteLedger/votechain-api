@@ -34,7 +34,7 @@ async fn main() -> std::io::Result<()> {
     // Create JwtManager to handle JWT stuff
     let jwt_manager = JwtManager::new(
         std::env::var("JWT_SECRET").unwrap(),
-        std::env::var("JWT_REFRESH").unwrap(),
+        std::env::var("JWT_REFRESH_SECRET").unwrap(),
     );
 
     // Crete connection with database
@@ -61,11 +61,11 @@ async fn main() -> std::io::Result<()> {
     info!("Starting Actix Web server...");
     HttpServer::new(move || {
         App::new()
-            .app_data(web::Data::new(app_state.clone())) // pass configured jwt manager to all
+            .app_data(app_state.clone()) // pass configured jwt manager to all
             .wrap(DefaultHeaders::new().add(("X-Server", "VoteChain-API"))) // add default headers
-            .wrap(from_fn(crate::middlewares::auth::ensure_auth)) // protect routes
-            .service(crate::routes::auth::signin::route) // auth routes
             .service(crate::routes::health::route) // health route
+            .service(crate::routes::auth::signin::route) // auth routes
+            .wrap(from_fn(crate::middlewares::auth::ensure_auth))
     })
     .bind(("127.0.0.1", 1234))?
     .run()

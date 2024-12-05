@@ -5,15 +5,20 @@ use actix_web::{
     Error,
 };
 
+const UNPROTECTED_PATHS: [&str; 2] = ["/auth/signin", "/health"];
+
 pub async fn ensure_auth(
     req: ServiceRequest,
     next: Next<impl MessageBody>,
 ) -> Result<ServiceResponse<impl MessageBody>, Error> {
+    // Skip whole middleware if the path is in the unprotected (public) paths
+    if UNPROTECTED_PATHS.contains(&req.path()) {
+        return next.call(req).await;
+    }
+
     // First of all, ensure that the request has a valid JWT token
     // If not, return an error response
-    println!("Auth middleware");
-
-    println!("Request headers: {:?}", req);
+    println!("Auth middleware called from: {}", req.path());
 
     // Extract cookie from request
     let cookie = req.cookie("token");
