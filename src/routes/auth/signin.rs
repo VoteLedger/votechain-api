@@ -1,20 +1,27 @@
 use std::str::FromStr;
 
-use crate::auth::{generate_jwt_token_pair, Identity, SecretPair};
 use actix_web::{post, web, Responder, Result};
 use alloy::primitives::PrimitiveSignature;
 use log::info;
 use serde::{Deserialize, Serialize};
 
+use crate::AppState;
+
 #[derive(Serialize)]
+pub struct TokenPair {
+    pub token: String,         // Access token
+    pub refresh_token: String, // Refresh token
+}
+
+pub struct Identity {
+    pub address: String, // User's blockchain address
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
 enum SignInResponse {
-    Success {
-        token: String,
-        refresh_token: String,
-    },
-    Error {
-        error: String,
-    },
+    Success { data: TokenPair },
+    Error { error: String },
 }
 
 #[derive(Deserialize)]
@@ -26,7 +33,10 @@ struct SignInRequest {
 
 // Create secret pair struct to be used later!
 #[post("/auth/signin")]
-pub async fn route(web::Json(data): web::Json<SignInRequest>) -> Result<impl Responder> {
+pub async fn route(
+    shared_data: web::Data<AppState>,
+    web::Json(data): web::Json<SignInRequest>,
+) -> Result<impl Responder> {
     // Extract signature + account from request
     let message = data.message.to_string();
     let recv_sign = data.signature.to_string();
@@ -63,21 +73,12 @@ pub async fn route(web::Json(data): web::Json<SignInRequest>) -> Result<impl Res
     // Build identity struct
     let identity = Identity { address };
 
-    // load secrets from environment variables
-    let secrets = SecretPair {
-        secret: std::env::var("JWT_SECRET").unwrap(),
-        refresh_secret: std::env::var("JWT_REFRESH_SECRET").unwrap(),
-    };
-
     // Generate JWT token for the user!
-    let token_pair = generate_jwt_token_pair(identity, secrets);
+    let token_pair = shared_data.jwt_manager.generate_token_pair(identity);
 
     info!("\tAccess token: {}", token_pair.token);
     info!("\tRefresh token: {}", token_pair.refresh_token);
 
     // Check whether signature is already present in database
-    Ok(web::Json(SignInResponse::Success {
-        token: token_pair.token,
-        refresh_token: token_pair.refresh_token,
-    }))
+    Ok(web::Json(SignInResponse::Success { data: token_pair }))
 }

@@ -1,73 +1,96 @@
-use jsonwebtoken::{encode, EncodingKey, Header};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::routes::auth::signin::{Identity, TokenPair};
+
 #[derive(Debug, Serialize, Deserialize)]
-struct Claims {
+pub struct Claims {
     sub: String,     // Subject (e.g., user identifier)
     company: String, // Optional claim
     exp: usize,      // Expiration time (in seconds since epoch)
 }
 
-pub struct Identity {
-    pub address: String, // User's blockchain address
-                         // pub _chain_id: String, // Blockchain chain ID
+#[derive(Clone)]
+pub struct JwtManager {
+    access_secret: String,
+    refresh_secret: String,
+    access_token_exp: usize,  // Expiration time for access tokens in seconds
+    refresh_token_exp: usize, // Expiration time for refresh tokens in seconds
 }
 
-pub struct SecretPair {
-    pub secret: String,         // Secret for access token
-    pub refresh_secret: String, // Secret for refresh token
-}
+impl JwtManager {
+    /// Create a new JwtManager with secrets and expiration times
+    pub fn new(access_secret: String, refresh_secret: String) -> Self {
+        Self {
+            access_secret,
+            refresh_secret,
+            access_token_exp: 15 * 60,            // Default 15 minutes
+            refresh_token_exp: 30 * 24 * 60 * 60, // Default 30 days
+        }
+    }
 
-pub struct TokenPair {
-    pub token: String,         // Access token
-    pub refresh_token: String, // Refresh token
-}
+    /// Generate a pair of JWT tokens (access + refresh)
+    pub fn generate_token_pair(&self, identity: Identity) -> TokenPair {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs() as usize;
 
-pub fn generate_jwt_token_pair(data: Identity, secrets: SecretPair) -> TokenPair {
-    // Set expiration times (e.g., 15 minutes for access, 30 days for refresh)
-    let access_token_exp = 15 * 60; // 15 minutes in seconds
-    let refresh_token_exp = 30 * 24 * 60 * 60; // 30 days in seconds
+        // Claims for access token
+        let access_claims = Claims {
+            sub: identity.address.clone(),
+            company: "VoteChain".to_owned(),
+            exp: now + self.access_token_exp,
+        };
 
-    // Get the current time as seconds since epoch
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_secs() as usize;
+        // Claims for refresh token
+        let refresh_claims = Claims {
+            sub: identity.address.clone(),
+            company: "VoteChain".to_owned(),
+            exp: now + self.refresh_token_exp,
+        };
 
-    // Claims for access token
-    let access_claims = Claims {
-        sub: data.address.clone(),
-        company: "YourCompany".to_owned(),
-        exp: now + access_token_exp, // Expiration in 15 minutes
-    };
+        // Generate JWT access token
+        let token = encode(
+            &Header::default(),
+            &access_claims,
+            &EncodingKey::from_secret(self.access_secret.as_ref()),
+        )
+        .expect("Failed to generate access token");
 
-    // Claims for refresh token
-    let refresh_claims = Claims {
-        sub: data.address.clone(),
-        company: "YourCompany".to_owned(),
-        exp: now + refresh_token_exp, // Expiration in 30 days
-    };
+        // Generate JWT refresh token
+        let refresh_token = encode(
+            &Header::default(),
+            &refresh_claims,
+            &EncodingKey::from_secret(self.refresh_secret.as_ref()),
+        )
+        .expect("Failed to generate refresh token");
 
-    // Generate JWT access token
-    let token = encode(
-        &Header::default(),
-        &access_claims,
-        &EncodingKey::from_secret(secrets.secret.as_ref()),
-    )
-    .expect("Failed to generate access token");
+        TokenPair {
+            token,
+            refresh_token,
+        }
+    }
 
-    // Generate JWT refresh token
-    let refresh_token = encode(
-        &Header::default(),
-        &refresh_claims,
-        &EncodingKey::from_secret(secrets.refresh_secret.as_ref()),
-    )
-    .expect("Failed to generate refresh token");
+    /// Verify a JWT token and return its claims
+    pub fn verify_token(
+        &self,
+        token: &str,
+        is_refresh: bool,
+    ) -> Result<Claims, jsonwebtoken::errors::Error> {
+        let secret = if is_refresh {
+            &self.refresh_secret
+        } else {
+            &self.access_secret
+        };
 
-    // Return token pair
-    TokenPair {
-        token,
-        refresh_token,
+        let token_data = decode::<Claims>(
+            token,
+            &DecodingKey::from_secret(secret.as_ref()),
+            &Validation::default(),
+        )?;
+
+        Ok(token_data.claims)
     }
 }
