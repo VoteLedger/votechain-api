@@ -29,7 +29,7 @@ async fn main() -> std::io::Result<()> {
     // Link rpc client to alloy
     let rpc_url = std::env::var("RPC_URL").unwrap();
 
-    info!("Linking rpc client to alloy...");
+    info!("Linking rpc client to Alloy...");
     let provider = ProviderBuilder::new().on_http(rpc_url.parse().unwrap());
 
     // Ask the chain for its chain id
