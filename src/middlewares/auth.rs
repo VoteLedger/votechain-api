@@ -2,12 +2,15 @@ use actix_web::{
     body::MessageBody,
     dev::{ServiceRequest, ServiceResponse},
     middleware::Next,
-    Error,
+    web, Error,
 };
+
+use crate::AppState;
 
 const UNPROTECTED_PATHS: [&str; 2] = ["/auth/signin", "/health"];
 
 pub async fn ensure_auth(
+    data: web::Data<AppState>,
     req: ServiceRequest,
     next: Next<impl MessageBody>,
 ) -> Result<ServiceResponse<impl MessageBody>, Error> {
@@ -16,21 +19,37 @@ pub async fn ensure_auth(
         return next.call(req).await;
     }
 
-    // First of all, ensure that the request has a valid JWT token
-    // If not, return an error response
-    println!("Auth middleware called from: {}", req.path());
+    // Extract the bearer token from the Authorization header
+    let token = match req.headers().get("Authorization") {
+        Some(t) => t.to_str().unwrap_or(""),
+        None => "",
+    };
 
-    // Extract cookie from request
-    let cookie = req.cookie("token");
-    if cookie.is_none() {
-        return Err(actix_web::error::ErrorUnauthorized("No token provided"));
+    // Check if the token is empty
+    if token.is_empty() {
+        return Err(actix_web::error::ErrorUnauthorized(
+            "No token provided in Authorization header",
+        ));
     }
 
-    // Extract the token from the cookie
-    let token = cookie.unwrap();
+    // Check if the token is a bearer token
+    if !token.starts_with("Bearer ") {
+        return Err(actix_web::error::ErrorUnauthorized(
+            "Invalid token format. Use Bearer.",
+        ));
+    }
 
-    // Ensure that the token is valid
-    println!("Cookie value: {}", token.value());
+    // Check if the token is valid
+    let token = token.trim_start_matches("Bearer ");
+    let result = data.jwt_manager.verify_token(token, false);
+    if result.is_err() {
+        return Err(actix_web::error::ErrorPreconditionFailed(
+            "Invalid or expired token",
+        ));
+    }
+
+    // FIXME: We need to generate a new token + save it in db
+    println!("Token is valid!");
 
     // continue processing the request
     next.call(req).await
