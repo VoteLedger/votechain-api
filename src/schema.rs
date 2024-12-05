@@ -3,10 +3,9 @@
 diesel::table! {
     users (id) {
         id -> Int4,
-        accounts -> Array<Nullable<Text>>,
-        signature -> Text,
-        created_at -> Nullable<Timestamp>,
+        primary_account -> Text,
         refresh_token -> Text,
         last_login -> Nullable<Timestamp>,
+        created_at -> Nullable<Timestamp>,
     }
 }

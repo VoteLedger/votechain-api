@@ -2,7 +2,9 @@ mod auth;
 mod config;
 mod db;
 mod middlewares;
+mod models;
 mod routes;
+mod schema;
 
 use crate::config::load_env;
 use actix_web::{
