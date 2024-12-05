@@ -63,9 +63,11 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(app_state.clone()) // pass configured jwt manager to all
             .wrap(DefaultHeaders::new().add(("X-Server", "VoteChain-API"))) // add default headers
+            .wrap(from_fn(crate::middlewares::auth::ensure_auth))
             .service(crate::routes::health::route) // health route
             .service(crate::routes::auth::signin::route) // auth routes
-            .wrap(from_fn(crate::middlewares::auth::ensure_auth))
+            .service(crate::routes::auth::refresh::route) // auth routes
+            .service(crate::routes::polls::get::route) // polls routes
     })
     .bind(("127.0.0.1", 1234))?
     .run()
