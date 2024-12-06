@@ -1,6 +1,7 @@
 use alloy::contract::Contract;
-use alloy::providers::{Http, Provider};
-use alloy::signers::{LocalWallet, Signer};
+use alloy::providers::{Http, Provider, ProviderBuilder};
+//use alloy::signers::{LocalWallet, Signer};
+use alloy::signers::local::PrivateKeySigner;
 use std::env;
 use std::sync::Arc;
 
@@ -11,28 +12,38 @@ pub struct BlockchainManager {
 
 impl BlockchainManager {
     pub async fn new() -> Self {
-        let rpc_url = env::var("RPC_URL").expect("RPC_URL not set in .env file");
-        let private_key = env::var("PRIVATE_KEY").expect("PRIVATE_KEY not set in .env file");
+        let rpc_url = env::var("RPC_URL").unwrap();
+        let private_key = env::var("PRIVATE_KEY").unwrap();
         let contract_address =
-            env::var("CONTRACT_ADDRESS").expect("CONTRACT_ADDRESS not set in .env file");
-        let abi_path = "abi/contract_abi.json";
+            env::var("CONTRACT_ADDRESS").unwrap();
+        let abi_path = "abi/VoteChain.json";
 
         // Setup provider
-        let provider = Provider::<Http>::try_from(rpc_url).expect("Failed to connect to provider");
-        let provider = Arc::new(provider);
+       // let provider = ProviderBuilder::new().on_http(rpc_url);
+       // let provider = Arc::new(provider);
 
         // Setup wallet
-        let wallet: LocalWallet = private_key.parse().expect("Invalid private key");
-        let client = wallet.connect(provider.clone());
+        //let wallet: LocalWallet = private_key.parse().unwrap();
+        //let client = wallet.connect(provider.clone());
+
+        // Following wallet and provider definitions are based on what found on the documentation
+        // They might be wrong, i don't trust documentations so we'll see
+
+        let signer: PrivateKeySigner = anvil.keys()[0].clone().into();
+        let wallet = EthereumWallet::from(signer);
+
+        // Create a provider with the wallet.
+        let rpc_url = anvil.endpoint_url();
+        let provider = ProviderBuilder::new().with_recommended_fillers().wallet(wallet).on_http(rpc_url);
 
         // Load contract ABI
-        let abi = std::fs::read_to_string(abi_path).expect("Failed to read ABI file");
+        let abi = std::fs::read_to_string(abi_path).unwrap();
         let contract = Contract::from_json(
-            contract_address.parse().expect("Invalid contract address"),
+            contract_address.parse().unwrap(),
             abi,
             client,
         )
-        .expect("Failed to create contract instance");
+        .unwrap();
 
         BlockchainManager { provider, contract }
     }
