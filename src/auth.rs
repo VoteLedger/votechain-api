@@ -1,4 +1,6 @@
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{
+    decode, encode, Algorithm, DecodingKey, EncodingKey, Header, TokenData, Validation,
+};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -6,9 +8,9 @@ use crate::routes::auth::signin::{Identity, TokenPair};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    sub: String,     // Subject (e.g., user identifier)
-    company: String, // Optional claim
-    exp: usize,      // Expiration time (in seconds since epoch)
+    pub sub: String, // Subject (e.g., user identifier)
+    pub aud: String, // Audience (e.g., votechain client)
+    pub exp: usize,  // Expiration time (in seconds since epoch)
 }
 
 #[derive(Clone)]
@@ -40,14 +42,14 @@ impl JwtManager {
         // Claims for access token
         let access_claims = Claims {
             sub: identity.address.clone(),
-            company: "VoteChain".to_owned(),
+            aud: "VoteChain".to_owned(),
             exp: now + self.access_token_exp,
         };
 
         // Claims for refresh token
         let refresh_claims = Claims {
             sub: identity.address.clone(),
-            company: "VoteChain".to_owned(),
+            aud: "VoteChain".to_owned(),
             exp: now + self.refresh_token_exp,
         };
 
@@ -73,24 +75,28 @@ impl JwtManager {
         }
     }
 
-    /// Verify a JWT token and return its claims
-    pub fn verify_token(
+    /// Decode token with our custom validation routine
+    pub fn decode_token(
         &self,
         token: &str,
         is_refresh: bool,
-    ) -> Result<Claims, jsonwebtoken::errors::Error> {
+    ) -> Result<TokenData<Claims>, jsonwebtoken::errors::Error> {
         let secret = if is_refresh {
             &self.refresh_secret
         } else {
             &self.access_secret
         };
 
-        let token_data = decode::<Claims>(
+        // Define validation rules
+        let mut validation = Validation::new(Algorithm::HS256);
+        validation.set_audience(&["VoteChain"]);
+        validation.set_required_spec_claims(&["sub", "exp", "aud"]);
+
+        // Decode the token, and pass validation rules
+        decode::<Claims>(
             token,
             &DecodingKey::from_secret(secret.as_ref()),
-            &Validation::default(),
-        )?;
-
-        Ok(token_data.claims)
+            &validation,
+        )
     }
 }

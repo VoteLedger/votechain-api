@@ -1,6 +1,6 @@
-use ethers::providers::{Http, Provider};
-use ethers::contract::Contract;
-use ethers::signers::{LocalWallet, Signer};
+use alloy::contract::Contract;
+use alloy::providers::{Http, Provider};
+use alloy::signers::{LocalWallet, Signer};
 use std::env;
 use std::sync::Arc;
 
@@ -13,7 +13,8 @@ impl BlockchainManager {
     pub async fn new() -> Self {
         let rpc_url = env::var("RPC_URL").expect("RPC_URL not set in .env file");
         let private_key = env::var("PRIVATE_KEY").expect("PRIVATE_KEY not set in .env file");
-        let contract_address = env::var("CONTRACT_ADDRESS").expect("CONTRACT_ADDRESS not set in .env file");
+        let contract_address =
+            env::var("CONTRACT_ADDRESS").expect("CONTRACT_ADDRESS not set in .env file");
         let abi_path = "abi/contract_abi.json";
 
         // Setup provider
@@ -26,8 +27,12 @@ impl BlockchainManager {
 
         // Load contract ABI
         let abi = std::fs::read_to_string(abi_path).expect("Failed to read ABI file");
-        let contract = Contract::from_json(contract_address.parse().expect("Invalid contract address"), abi, client)
-            .expect("Failed to create contract instance");
+        let contract = Contract::from_json(
+            contract_address.parse().expect("Invalid contract address"),
+            abi,
+            client,
+        )
+        .expect("Failed to create contract instance");
 
         BlockchainManager { provider, contract }
     }
@@ -44,4 +49,3 @@ impl BlockchainManager {
             .await?)
     }
 }
-

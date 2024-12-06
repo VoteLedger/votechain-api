@@ -6,7 +6,7 @@ use actix_web::{
 };
 use log::{debug, warn};
 
-use crate::AppState;
+use crate::{errors::ApiErrorResponse, AppState};
 
 const UNPROTECTED_PATHS: [&str; 2] = ["/auth/signin", "/health"];
 
@@ -33,9 +33,7 @@ pub async fn ensure_auth(
             "Received request without token to protected path: {}. Rejecting...",
             req.path()
         );
-        return Err(actix_web::error::ErrorUnauthorized(
-            "No token provided in Authorization header",
-        ));
+        return Err(ApiErrorResponse::NoToken.into());
     }
 
     // Check if the token is a bearer token
@@ -44,26 +42,34 @@ pub async fn ensure_auth(
             "Received request with invalid token format to protected path: {}. Rejecting...",
             req.path()
         );
-        return Err(actix_web::error::ErrorUnauthorized(
-            "Invalid token format. Use Bearer.",
-        ));
+        return Err(ApiErrorResponse::MissingBearerToken.into());
     }
 
     // Check if the token is valid
-    let token = token.trim_start_matches("Bearer ");
-    let result = data.jwt_manager.verify_token(token, false);
-    if result.is_err() {
-        warn!(
-            "Received request with invalid token to protected path: {}. Rejecting...",
-            req.path()
-        );
-        return Err(actix_web::error::ErrorPreconditionFailed(
-            "Invalid or expired token",
-        ));
-    }
+    let decoded_token = data
+        .jwt_manager
+        .decode_token(token.trim_start_matches("Bearer "), false);
 
-    // FIXME: We need to generate a new token + save it in db
-    println!("Token is valid! Proceeding with request...");
+    if decoded_token.is_err() {
+        warn!(
+            "Received request with invalid token to protected path: {}. Error: {:?}",
+            req.path(),
+            decoded_token
+        );
+
+        // Return the correct error
+        match decoded_token.unwrap_err().kind() {
+            jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
+                // signal user that the token has expired and needs
+                // to refresh it
+                return Err(ApiErrorResponse::ExpiredToken.into());
+            }
+            _ => {
+                // signal user that the token is invalid
+                return Err(ApiErrorResponse::InvalidToken.into());
+            }
+        };
+    }
 
     // continue processing the request
     next.call(req).await

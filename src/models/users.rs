@@ -1,6 +1,5 @@
 use crate::schema::users::dsl::*;
-use diesel::{debug_query, prelude::*};
-use log::debug;
+use diesel::prelude::*;
 
 #[derive(Queryable, Insertable)]
 #[diesel(table_name = crate::schema::users)]
