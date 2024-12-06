@@ -1,22 +1,51 @@
-use alloy::sol;
-use eyre::Result;
+use alloy::contract::Contract;
+use alloy::providers::{Http, Provider};
+use alloy::signers::{LocalWallet, Signer};
+use std::env;
+use std::sync::Arc;
 
-sol! {
-    pragma solidity ^0.8.0;
-
-    contract VoteChain {
-        function castVote(uint256 pollId, string option) public;
-    }
+pub struct BlockchainManager {
+    provider: Arc<Provider<Http>>,
+    contract: Contract<Arc<Provider<Http>>>,
 }
 
-pub async fn cast_vote(poll_id: u32, option: &str, wallet_address: &str) -> Result<()> {
-    let node_url = std::env::var("BLOCKCHAIN_NODE_URL")?;
-    let client = alloy::client::Client::new(node_url).await?;
+impl BlockchainManager {
+    pub async fn new() -> Self {
+        let rpc_url = env::var("RPC_URL").expect("RPC_URL not set in .env file");
+        let private_key = env::var("PRIVATE_KEY").expect("PRIVATE_KEY not set in .env file");
+        let contract_address =
+            env::var("CONTRACT_ADDRESS").expect("CONTRACT_ADDRESS not set in .env file");
+        let abi_path = "abi/contract_abi.json";
 
-    let contract_address = std::env::var("CONTRACT_ADDRESS")?;
-    let contract = VoteChain::new(contract_address.parse()?, client);
+        // Setup provider
+        let provider = Provider::<Http>::try_from(rpc_url).expect("Failed to connect to provider");
+        let provider = Arc::new(provider);
 
-    // Esegui la chiamata alla funzione `castVote`
-    contract.cast_vote(poll_id.into(), option.to_string()).send().await?;
-    Ok(())
+        // Setup wallet
+        let wallet: LocalWallet = private_key.parse().expect("Invalid private key");
+        let client = wallet.connect(provider.clone());
+
+        // Load contract ABI
+        let abi = std::fs::read_to_string(abi_path).expect("Failed to read ABI file");
+        let contract = Contract::from_json(
+            contract_address.parse().expect("Invalid contract address"),
+            abi,
+            client,
+        )
+        .expect("Failed to create contract instance");
+
+        BlockchainManager { provider, contract }
+    }
+
+    pub async fn get_chain_id(&self) -> Result<u64, Box<dyn std::error::Error>> {
+        Ok(self.provider.get_chain_id().await?.as_u64())
+    }
+
+    pub async fn call_get_data(&self) -> Result<String, Box<dyn std::error::Error>> {
+        Ok(self
+            .contract
+            .method::<_, String>("getData", ())?
+            .call()
+            .await?)
+    }
 }

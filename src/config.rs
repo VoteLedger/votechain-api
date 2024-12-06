@@ -1,21 +1,41 @@
-use dotenv::dotenv;
+use dotenv::from_path;
 use std::env;
 
-const REQUIRED_KEYS: [&str; 3] = [
-    "BLOCKCHAIN_NODE_URL",
-    "CONTRACT_ADDRESS",
+const KEYS: [&str; 11] = [
+    "POSTGRES_HOST",
+    "POSTGRES_PORT",
+    "POSTGRES_USER",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_DB",
+    "DATABASE_URL",
+    "RPC_URL",
     "JWT_SECRET",
+    "JWT_REFRESH_SECRET",
+    "VOTECHAIN_HOST",
+    "VOTECHAIN_PORT",
 ];
 
 pub fn load_env() -> bool {
-    dotenv().ok();
+    let root_dir = env::current_dir().expect("Failed to get current directory");
+    let dotfile = root_dir.join(".env");
 
-    REQUIRED_KEYS.iter().all(|key| {
-        if env::var(key).is_ok() {
-            true
-        } else {
-            eprintln!("Missing required environment variable: {}", key);
-            false
+    // Load the .env file from the specified path
+    if let Err(e) = from_path(&dotfile) {
+        println!("[!] Failed to load .env file: {}", e);
+        return false;
+    }
+
+    // Ensure all keys are present
+    let mut ok = true;
+    for key in KEYS {
+        match env::var(key) {
+            Ok(_v) => {}
+            Err(_e) => {
+                println!("[!] Config {} not present.", key);
+                ok = false;
+            }
         }
-    })
+    }
+
+    ok
 }

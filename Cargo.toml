@@ -4,11 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+
+jsonwebtoken = "9"
 actix-web = "4.9.0"
+alloy = { version = "0.7.2", features = ["full"] }
+diesel = { version = "2.2.6", features = ["postgres"] }
 dotenv = "0.15.0"
-alloy = "0.7.2"
-jsonwebtoken = "9.3.0"
-tokio = "1.42.0"
-serde = "1.0.215"
-eyre = "0.6.12"
-hex = "0.4.3"
+env_logger = "0.11.5"
+log = "0.4.22"
+serde = { version = "1.0.215", features = ["derive"] }
+derive_more = { version = "1.0.0", features = ["error"] }
