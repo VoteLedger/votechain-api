@@ -5,8 +5,10 @@ mod middlewares;
 mod models;
 mod routes;
 mod schema;
+mod blockchain;
 
 use crate::config::load_env;
+use crate::blockchain::BlockchainManager;
 use actix_web::{
     middleware::{from_fn, DefaultHeaders},
     web, App, HttpServer,
@@ -17,6 +19,7 @@ use log::{debug, info};
 
 pub struct AppState {
     jwt_manager: JwtManager,
+    blockchain_manager: BlockchainManager,
 }
 
 #[actix_web::main]
@@ -39,6 +42,9 @@ async fn main() -> std::io::Result<()> {
         std::env::var("JWT_REFRESH_SECRET").unwrap(),
     );
 
+    // Create BlockchainManager
+    let blockchain_manager = BlockchainManager::new().await;
+
     // Crete connection with database
     info!("Establishing connection with database...");
     let _connection = db::establish_connection();
@@ -57,7 +63,10 @@ async fn main() -> std::io::Result<()> {
     info!("Chain ID: {}", chain_id);
 
     // Build application state
-    let app_state = web::Data::new(AppState { jwt_manager });
+    let app_state = web::Data::new(AppState {
+        jwt_manager,
+        blockchain_manager,
+    });
 
     // Start ActiveX web server
     info!("Starting Actix Web server...");
@@ -70,6 +79,9 @@ async fn main() -> std::io::Result<()> {
             .service(crate::routes::auth::signin::route) // auth routes
             .service(crate::routes::auth::refresh::route) // auth routes
             .service(crate::routes::polls::get::route) // polls routes
+            .service(crate::routes::blockchain::get_data) // Blockchain route
+            .service(crate::routes::polls::get_poll)  // Route to extract a poll from the contratto
+            .service(crate::routes::polls::create_poll)  // Route to create a poll in the contract
     })
     .bind(("127.0.0.1", 1234))?
     .run()
