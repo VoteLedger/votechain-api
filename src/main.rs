@@ -7,6 +7,8 @@ mod routes;
 mod schema;
 mod blockchain;
 
+use std::sync::{Arc, Mutex};
+
 use crate::config::load_env;
 use crate::blockchain::BlockchainManager;
 use actix_web::{
@@ -15,11 +17,11 @@ use actix_web::{
 };
 use alloy::providers::{Provider, ProviderBuilder};
 use auth::JwtManager;
+use diesel::PgConnection;
 use log::{debug, info};
 
 pub struct AppState {
     jwt_manager: JwtManager,
-    blockchain_manager: BlockchainManager,
 }
 
 #[actix_web::main]
@@ -47,7 +49,10 @@ async fn main() -> std::io::Result<()> {
 
     // Crete connection with database
     info!("Establishing connection with database...");
-    let _connection = db::establish_connection();
+
+    // Establish connection with database + wrap in atomic reference to mutex
+    // NOTE: This is needed as we will be sharing the connection across threads
+    let connection = Arc::new(Mutex::new(db::establish_connection()));
 
     // Link rpc client to alloy
     let rpc_url = std::env::var("RPC_URL").unwrap();
@@ -63,10 +68,7 @@ async fn main() -> std::io::Result<()> {
     info!("Chain ID: {}", chain_id);
 
     // Build application state
-    let app_state = web::Data::new(AppState {
-        jwt_manager,
-        blockchain_manager,
-    });
+    let app_state = web::Data::new(AppState { jwt_manager });
 
     // Start ActiveX web server
     info!("Starting Actix Web server...");
