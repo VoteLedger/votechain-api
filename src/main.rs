@@ -105,7 +105,6 @@ async fn main() -> std::io::Result<()> {
             .service(crate::routes::polls::get_poll::route) // Route to get a poll
             .service(crate::routes::polls::get_polls::route) // Route to get all available polls
             .service(crate::routes::polls::create::route) // Route to create a poll in the contract
-                                                          // .service(crate::routes::blockchain::get_data) // Blockchain route
     })
     .bind(("127.0.0.1", 1234))?
     .run()

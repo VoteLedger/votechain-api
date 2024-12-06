@@ -1,26 +1,25 @@
 use alloy::contract::{ContractInstance, Interface};
 use alloy::primitives::Address;
-use alloy::providers::{Provider, ProviderBuilder};
-use alloy::transports::http::reqwest;
+use alloy::providers::{Provider, ProviderBuilder, RootProvider};
+use alloy::transports::http::{reqwest, Client, Http};
+use std::any::Any;
 use std::sync::Arc;
 
 pub struct ContractService {
     provider: Arc<dyn Provider>,
-    contract: 
+    contract: ContractInstance<Any, Arc<RootProvider<Http<Client>>>>,
 }
 
 impl ContractService {
-
-
-    // NOTE: Follow this example to understand the new API... 
+    // NOTE: Follow this example to understand the new API...
     // https://github.com/alloy-rs/examples/blob/5a6776f2400312ee6beb7ee108d9407cd889c078/examples/contracts/examples/interact_with_contract_instance.rs
     pub async fn new(rpc_url: &str, contract_address: Address, abi: &str) -> Self {
+        // create provider
         let url = reqwest::Url::parse(rpc_url).unwrap();
         let provider = Arc::new(ProviderBuilder::new().on_http(url));
 
-        // convert abi to json 
+        // convert abi to json
         let abi_json = serde_json::from_str(abi).unwrap();
-
 
         let contract =
             ContractInstance::new(contract_address, provider.clone(), Interface::new(abi));
