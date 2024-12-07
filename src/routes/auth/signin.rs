@@ -135,9 +135,7 @@ pub async fn route(
             error!("Error: {}", result.unwrap_err());
 
             // Return error response
-            return Err(actix_web::error::ErrorInternalServerError(
-                "Unable to record your new access to VoteChain, cannot proceed. Try again later.",
-            ));
+            return Err(ApiErrorResponse::InternalServerError.into());
         }
     }
 

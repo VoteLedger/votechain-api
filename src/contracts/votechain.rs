@@ -4,7 +4,8 @@ use alloy::{
     sol,
     transports::http::{Client, Http},
 };
-use VOTECHAIN::VOTECHAINInstance;
+use serde::Serialize;
+use VOTECHAIN::{pollsReturn, VOTECHAINInstance};
 
 // Codegen from ABI file to interact with the contract.
 sol!(
@@ -16,6 +17,32 @@ sol!(
 
 pub struct VotechainContract {
     contract: VOTECHAINInstance<Http<Client>, RootProvider<Http<Client>>>,
+}
+
+#[derive(Serialize)]
+pub struct Poll {
+    pub name: String,
+    pub description: String,
+    // pub options: Vec<String>,
+    pub start_time: U256,
+    pub end_time: U256,
+    pub winner: String,
+    pub is_ended: bool,
+}
+
+// Implement conversion from `pollsReturn` to `Poll`
+impl From<pollsReturn> for Poll {
+    fn from(poll: pollsReturn) -> Self {
+        Self {
+            name: poll.name,
+            description: poll.description,
+            // options: poll.options,
+            start_time: poll.start_time,
+            end_time: poll.end_time,
+            winner: poll.winner,
+            is_ended: poll.is_ended,
+        }
+    }
 }
 
 impl VotechainContract {
@@ -46,7 +73,7 @@ impl VotechainContract {
         }
     }
 
-    pub async fn get_available_polls(&self) -> Result<Vec<VOTECHAIN::pollsReturn>, String> {
+    pub async fn get_available_polls(&self) -> Result<Vec<Poll>, String> {
         // Get total number of polls
         let wrapped_count = self
             .contract
@@ -76,7 +103,7 @@ impl VotechainContract {
             match poll {
                 Ok(poll) => {
                     // Append poll data to vector
-                    polls.push(poll);
+                    polls.push(poll.into());
                 }
                 Err(e) => {
                     // Return error if poll data is invalid

@@ -1,13 +1,13 @@
 use actix_web::{get, web, Responder, Result};
 use serde::Serialize;
 
+use crate::contracts::votechain::Poll;
+
 #[derive(Serialize)]
 #[serde(untagged)]
 enum GetPollsResponse {
-    // Success { data: TokenPair },
-    // FIXME: As soon as diesel is integrated, use the Poll model struct!
-    Success { error: String },
-    _Error { error: String },
+    Success { polls: Vec<Poll> },
+    Error { error: String },
 }
 
 #[get("/polls")]
@@ -16,10 +16,18 @@ async fn route(app_data: web::Data<crate::AppState>) -> Result<impl Responder> {
     let contract = &app_data.contracts.votechain;
 
     // Fetch all available polls from the blockchain
-    contract.get_available_polls();
+    let polls = contract.get_available_polls().await;
 
-    // Check whether signature is already present in database
-    Ok(web::Json(GetPollsResponse::Success {
-        error: "<VoteChain-API>: Not implemented yet! Hi from backend btw".to_string(),
-    }))
+    // Check whether the request was successful
+    if polls.is_err() {
+        return Ok(web::Json(GetPollsResponse::Error {
+            error: polls.err().unwrap(),
+        }));
+    }
+
+    // Extract polls from the result
+    let polls = polls.unwrap();
+
+    // Return the polls
+    Ok(web::Json(GetPollsResponse::Success { polls }))
 }
