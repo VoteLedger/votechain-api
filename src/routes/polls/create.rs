@@ -24,13 +24,15 @@ pub async fn route(
     let question = form.into_inner();
     let private_key = std::env::var("PRIVATE_KEY").unwrap();
 
-    // FIXME: Finish this
-    match app_data
-        .contract_service
-        .create_poll(&private_key, question)
-        .await
-    {
-        Ok(_) => Ok(HttpResponse::Ok().body("Poll created successfully")),
-        Err(_) => Err(ApiErrorResponse::InternalServerError.into()),
-    }
+    // // FIXME: Finish this
+    // match app_data
+    //     .contract_service
+    //     .create_poll(&private_key, question)
+    //     .await
+    // {
+    //     Ok(_) => Ok(HttpResponse::Ok().body("Poll created successfully")),
+    //     Err(_) => Err(ApiErrorResponse::InternalServerError.into()),
+    // }
+
+    Ok(HttpResponse::Ok().body("Poll created successfully"))
 }

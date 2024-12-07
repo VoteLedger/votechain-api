@@ -1,36 +1,31 @@
 mod auth;
-mod blockchain;
 mod config;
+mod contracts;
 mod db;
 mod errors;
 mod middlewares;
 mod models;
 mod routes;
 mod schema;
-mod services;
 
 use std::sync::{Arc, Mutex};
 
-use crate::blockchain::BlockchainManager;
 use crate::config::load_env;
 use actix_web::{
     middleware::{from_fn, DefaultHeaders},
     web, App, HttpServer,
 };
 use alloy::{
-    hex::FromHex,
-    primitives::Address,
     providers::{Provider, ProviderBuilder},
+    transports::http::reqwest::Url,
 };
 use auth::JwtManager;
 use diesel::PgConnection;
 use log::{debug, info};
-use services::contract::ContractService;
 
 pub struct AppState {
     jwt_manager: JwtManager,
     connection: Arc<Mutex<PgConnection>>,
-    contract_service: ContractService,
 }
 
 #[actix_web::main]
@@ -53,9 +48,6 @@ async fn main() -> std::io::Result<()> {
         std::env::var("JWT_REFRESH_SECRET").unwrap(),
     );
 
-    // Create BlockchainManager
-    let blockchain_manager = BlockchainManager::new().await;
-
     // Crete connection with database
     info!("Establishing connection with database...");
 
@@ -63,33 +55,40 @@ async fn main() -> std::io::Result<()> {
     // NOTE: This is needed as we will be sharing the connection across threads
     let connection = Arc::new(Mutex::new(db::establish_connection()));
 
-    // Link rpc client to alloy
-    let rpc_url = std::env::var("RPC_URL").unwrap();
+    // create link with available contracts + connect to blockchain
+    let rpc_url = Url::parse(&std::env::var("RPC_URL").unwrap()).unwrap();
+    let abi_path = std::path::Path::new(&std::env::var("VOTECHAIN_SOL_ABI_PATH").unwrap());
 
+    // create provider
     info!("Linking rpc client to Alloy...");
-    let provider = ProviderBuilder::new().on_http(rpc_url.parse().unwrap());
+    let provider = ProviderBuilder::new().on_http(rpc_url);
 
     // Ask the chain for its chain id
     let chain_id = provider
         .get_chain_id()
         .await
         .expect("Failed to get chain id");
-    info!("Chain ID: {}", chain_id);
+    info!("Connection successful. Chain ID: {}", chain_id);
+
+    // // Create BlockchainManager
+    // let blockchain_manager =
+    //     BlockchainManager::new(rpc_url, &std::env::var("PRIVATE_KEY").unwrap());
+    //
 
     // FIXME: Create contract correctly
     // We need to work using Alloy new types, not ethers!
-    let contract_service = ContractService::new(
-        &rpc_url,
-        Address::from_hex("0x").unwrap(),
-        "fixme".as_bytes(),
-    )
-    .await;
+    //
+    // let contract_service = ContractService::new(
+    //     &rpc_url,
+    //     Address::from_hex("0x").unwrap(),
+    //     "fixme".as_bytes(),
+    // )
+    // .await;
 
     // Build application state
     let app_state = web::Data::new(AppState {
         jwt_manager,
         connection,
-        contract_service,
     });
 
     // Start ActiveX web server
