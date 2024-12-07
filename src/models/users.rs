@@ -44,4 +44,12 @@ impl User {
             })
             .execute(conn)
     }
+
+    pub fn revoke_refresh_token(&self, conn: &mut PgConnection) {
+        // Query the database
+        diesel::update(users.filter(primary_account.eq(&self.primary_account)))
+            .set(refresh_token.eq(""))
+            .execute(conn)
+            .expect("Failed to revoke refresh token");
+    }
 }

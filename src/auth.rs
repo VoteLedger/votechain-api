@@ -6,7 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::routes::auth::signin::{Identity, TokenPair};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
     pub sub: String, // Subject (e.g., user identifier)
     pub aud: String, // Audience (e.g., votechain client)
@@ -22,7 +22,7 @@ pub struct JwtManager {
 }
 
 impl JwtManager {
-    /// Create a new JwtManager with secrets and expiration times
+    // Create a new JwtManager with secrets and expiration times
     pub fn new(access_secret: String, refresh_secret: String) -> Self {
         Self {
             access_secret,
@@ -32,7 +32,39 @@ impl JwtManager {
         }
     }
 
-    /// Generate a pair of JWT tokens (access + refresh)
+    pub fn new_access_token_from_refresh(&self, refresh_token: &str) -> Option<String> {
+        let decoded_token = self.decode_token(refresh_token, true).ok()?;
+
+        // Create a new access token from the claims extracted from the refresh token
+        let mut claims = decoded_token.claims.clone();
+
+        // Update the expiration time
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs() as usize;
+
+        // Compute the new expiration time
+        let new_exp = now + self.access_token_exp;
+
+        // Update the expiration time in the claims
+        claims.exp = new_exp;
+
+        // Generate the new access token
+        Some(self.generate_token(claims, &self.access_secret))
+    }
+
+    // Generate a single JWT token
+    pub fn generate_token(&self, claims: Claims, secret: &str) -> String {
+        encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(secret.as_ref()),
+        )
+        .expect("Failed to generate token")
+    }
+
+    // Generate a pair of JWT tokens (access + refresh)
     pub fn generate_token_pair(&self, identity: Identity) -> TokenPair {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -53,21 +85,11 @@ impl JwtManager {
             exp: now + self.refresh_token_exp,
         };
 
-        // Generate JWT access token
-        let token = encode(
-            &Header::default(),
-            &access_claims,
-            &EncodingKey::from_secret(self.access_secret.as_ref()),
-        )
-        .expect("Failed to generate access token");
+        // Generate access token
+        let token = self.generate_token(access_claims, &self.access_secret);
 
-        // Generate JWT refresh token
-        let refresh_token = encode(
-            &Header::default(),
-            &refresh_claims,
-            &EncodingKey::from_secret(self.refresh_secret.as_ref()),
-        )
-        .expect("Failed to generate refresh token");
+        // Generate refresh token
+        let refresh_token = self.generate_token(refresh_claims, &self.refresh_secret);
 
         TokenPair {
             token,

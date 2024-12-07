@@ -8,7 +8,7 @@ use log::{debug, warn};
 
 use crate::{errors::ApiErrorResponse, AppState};
 
-const UNPROTECTED_PATHS: [&str; 2] = ["/auth/signin", "/health"];
+const UNPROTECTED_PATHS: [&str; 3] = ["/auth/signin", "/auth/refresh", "/health"];
 
 pub async fn ensure_auth(
     data: web::Data<AppState>,

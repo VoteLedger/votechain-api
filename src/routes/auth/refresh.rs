@@ -34,35 +34,70 @@ pub async fn route(
     //    saved in the refresh token
     let decoded_token = app_state.jwt_manager.decode_token(&refresh_token, true);
 
-    // If the refresh token is invalid, just reject the request
-    if decoded_token.is_err() {
+    // If the token is invalid (expired is okay at the moment) return an error
+    if decoded_token.is_err()
+        && !jsonwebtoken::errors::ErrorKind::ExpiredSignature
+            .eq(decoded_token.as_ref().unwrap_err().kind())
+    {
         return Err(ApiErrorResponse::InvalidToken.into());
     }
 
     // Extract account address from token claims
-    let address = decoded_token.unwrap().claims.sub;
+    let address = &decoded_token.as_ref().unwrap().claims.sub;
 
     // If its valid, we need to ensure that it is actually linked to the user in the DB
     // NOTE: This allows to revoke the refresh token if the user logs out!
     let mut connection = app_state.connection.lock().unwrap();
-    let user = User::get_user_by_address(&mut connection, &address);
+    let user = User::get_user_by_address(&mut connection, address);
     if user.is_err() {
         return Err(ApiErrorResponse::InvalidToken.into());
     }
 
     // We now check whether the refresh token is still linked to the account, or it has been
     // replaced
-    if user.unwrap().refresh_token != refresh_token {
+    let user = user.unwrap();
+    if user.refresh_token != refresh_token {
         return Err(ApiErrorResponse::TokenMismatch.into());
     }
 
-    // If the token is valid, generate new one!
-    // FIXME: This must be completed!
+    // First of all, we need to verify that the refresh token is still valid
+    if app_state
+        .jwt_manager
+        .decode_token(&refresh_token, true)
+        .is_err()
+    {
+        // clean the database of the refresh token
+        user.revoke_refresh_token(&mut connection);
+        // return an error response
+        return Err(ApiErrorResponse::ExpiredToken.into());
+    }
+
+    // If the token is invalid (expired is okay at the moment) return an error
+    if decoded_token.is_err()
+        && jsonwebtoken::errors::ErrorKind::ExpiredSignature
+            .eq(decoded_token.as_ref().unwrap_err().kind())
+    {
+        // clean the database of the refresh token
+        user.revoke_refresh_token(&mut connection);
+        // return an error response
+        return Err(ApiErrorResponse::ExpiredToken.into());
+    }
+
+    // We need to check again for errors: if the token is expired, we need to clean the db record
+
+    // Generate new access token from the refresh token
+    let new_access_token = app_state
+        .jwt_manager
+        .new_access_token_from_refresh(&refresh_token);
+
+    if new_access_token.is_none() {
+        return Err(ApiErrorResponse::InvalidToken.into());
+    }
 
     // Respond with a dummy token
     Ok(web::Json(RefreshResponse::Success {
         data: FreshToken {
-            token: "dummy_token".to_string(),
+            token: new_access_token.unwrap(),
         },
     }))
 }
