@@ -16,7 +16,6 @@ use actix_web::{
     web, App, HttpServer,
 };
 use alloy::{
-    hex::FromHex,
     primitives::Address,
     providers::{Provider, ProviderBuilder},
     transports::http::reqwest::Url,
@@ -77,8 +76,11 @@ async fn main() -> std::io::Result<()> {
     info!("Connection successful. Chain ID: {}", chain_id);
 
     // Now, build the VoteChain contract abstraction
-    let address = Address::from_hex(std::env::var("VOTECHAIN_CONTRACT_ADDRESS").unwrap())
-        .expect("Invalid contract address. Ensure it is a valid hex string.");
+    let address = Address::parse_checksummed(
+        std::env::var("VOTECHAIN_CONTRACT_ADDRESS").unwrap(),
+        Some(chain_id),
+    )
+    .expect("Invalid contract address. Ensure it is a valid hex string with checksum");
     let votechain_contract = contracts::votechain::VotechainContract::new(address, provider);
 
     // Build application state

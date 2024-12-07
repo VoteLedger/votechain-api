@@ -11,7 +11,13 @@ enum GetPollsResponse {
 }
 
 #[get("/polls")]
-async fn route() -> Result<impl Responder> {
+async fn route(app_data: web::Data<crate::AppState>) -> Result<impl Responder> {
+    // Extract contract from app data
+    let contract = &app_data.contracts.votechain;
+
+    // Fetch all available polls from the blockchain
+    contract.get_available_polls();
+
     // Check whether signature is already present in database
     Ok(web::Json(GetPollsResponse::Success {
         error: "<VoteChain-API>: Not implemented yet! Hi from backend btw".to_string(),

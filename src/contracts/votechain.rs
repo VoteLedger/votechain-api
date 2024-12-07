@@ -1,5 +1,5 @@
 use alloy::{
-    primitives::{address, Address},
+    primitives::{ruint::aliases::U256, Address},
     providers::RootProvider,
     sol,
     transports::http::{Client, Http},
@@ -26,7 +26,35 @@ impl VotechainContract {
         }
     }
 
-    pub async fn create_poll(&self, private_key: &str, question: String) -> Result<(), String> {
-        Ok(())
+    pub async fn create_poll(
+        &self,
+        name: String,
+        description: String,
+        options: Vec<String>,
+        start_time: U256,
+        end_time: U256,
+    ) -> Result<(), String> {
+        let result = self
+            .contract
+            .createPoll(name, description, options, start_time, end_time)
+            .call()
+            .await;
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    pub async fn get_polls(
+        &self,
+    ) -> Result<Vec<(String, String, Vec<String>, U256, U256)>, String> {
+        // Compute current time in seconds
+
+        let result = self.contract.polls().call().await;
+        match result {
+            Ok(polls) => Ok(polls),
+            Err(e) => Err(e.to_string()),
+        }
     }
 }
