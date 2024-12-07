@@ -16,6 +16,7 @@ use actix_web::{
     web, App, HttpServer,
 };
 use alloy::{
+    primitives::Address,
     providers::{Provider, ProviderBuilder},
     transports::http::reqwest::Url,
 };
@@ -57,7 +58,6 @@ async fn main() -> std::io::Result<()> {
 
     // create link with available contracts + connect to blockchain
     let rpc_url = Url::parse(&std::env::var("RPC_URL").unwrap()).unwrap();
-    let abi_path = std::path::Path::new(&std::env::var("VOTECHAIN_SOL_ABI_PATH").unwrap());
 
     // create provider
     info!("Linking rpc client to Alloy...");
@@ -70,20 +70,9 @@ async fn main() -> std::io::Result<()> {
         .expect("Failed to get chain id");
     info!("Connection successful. Chain ID: {}", chain_id);
 
-    // // Create BlockchainManager
-    // let blockchain_manager =
-    //     BlockchainManager::new(rpc_url, &std::env::var("PRIVATE_KEY").unwrap());
-    //
-
-    // FIXME: Create contract correctly
-    // We need to work using Alloy new types, not ethers!
-    //
-    // let contract_service = ContractService::new(
-    //     &rpc_url,
-    //     Address::from_hex("0x").unwrap(),
-    //     "fixme".as_bytes(),
-    // )
-    // .await;
+    // Now, build the VoteChain contract abstraction
+    let address = Address::new(&std::env::var("VOTECHAIN_CONTRACT_ADDRESS").unwrap());
+    let contract = contracts::votechain::VotechainContract::new(address, provider);
 
     // Build application state
     let app_state = web::Data::new(AppState {
