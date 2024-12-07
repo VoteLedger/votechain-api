@@ -68,19 +68,30 @@ async fn main() -> std::io::Result<()> {
     info!("Linking rpc client to Alloy...");
     let provider = ProviderBuilder::new().on_http(rpc_url);
 
+    // Get chain id from config file
+    let chain_id = std::env::var("CHAIN_ID").unwrap().parse::<u64>().unwrap();
+
     // Ask the chain for its chain id
-    let chain_id = provider
+    let actual_chain_id = provider
         .get_chain_id()
         .await
         .expect("Failed to get chain id");
-    info!("Connection successful. Chain ID: {}", chain_id);
+    info!("Connection successful. Got chain id: {}", actual_chain_id);
+
+    // Ensure that the chain Id matches the one in the config
+    if actual_chain_id != chain_id {
+        panic!(
+            "Chain ID mismatch. Expected: {}, Got: {}",
+            chain_id, actual_chain_id
+        );
+    } else {
+        info!("Chain ID matches the one in the config file. Proceeding...");
+    }
 
     // Now, build the VoteChain contract abstraction
-    let address = Address::parse_checksummed(
-        std::env::var("VOTECHAIN_CONTRACT_ADDRESS").unwrap(),
-        Some(chain_id),
-    )
-    .expect("Invalid contract address. Ensure it is a valid hex string with checksum");
+    let address =
+        Address::parse_checksummed(std::env::var("VOTECHAIN_CONTRACT_ADDRESS").unwrap(), None)
+            .expect("Invalid contract address. Ensure it is a valid hex string with checksum");
     let votechain_contract = contracts::votechain::VotechainContract::new(address, provider);
 
     // Build application state
