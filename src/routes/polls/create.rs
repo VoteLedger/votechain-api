@@ -16,14 +16,11 @@ enum PollResponse {
     _Error { error: String },
 }
 
-#[post("/poll")]
+#[post("/polls")]
 pub async fn route(
-    form: web::Json<String>,
+    request: web::Json<String>,
     app_data: web::Data<AppState>,
 ) -> Result<impl Responder> {
-    let question = form.into_inner();
-    let private_key = std::env::var("PRIVATE_KEY").unwrap();
-
     // // FIXME: Finish this
     // match app_data
     //     .contract_service

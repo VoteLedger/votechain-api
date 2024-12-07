@@ -22,7 +22,7 @@ enum RefreshResponse {
 // Create secret pair struct to be used later!
 #[post("/auth/refresh")]
 pub async fn route(
-    shared_data: web::Data<AppState>,
+    app_state: web::Data<AppState>,
     web::Json(data): web::Json<RefreshRequest>,
 ) -> Result<impl Responder> {
     // Get refresh token from the request
@@ -32,7 +32,7 @@ pub async fn route(
     //  - If the token is invalid, return an error response
     //  - If the token is valid, generate a new access token with the session data
     //    saved in the refresh token
-    let decoded_token = shared_data.jwt_manager.decode_token(&refresh_token, true);
+    let decoded_token = app_state.jwt_manager.decode_token(&refresh_token, true);
 
     // If the refresh token is invalid, just reject the request
     if decoded_token.is_err() {
@@ -44,7 +44,7 @@ pub async fn route(
 
     // If its valid, we need to ensure that it is actually linked to the user in the DB
     // NOTE: This allows to revoke the refresh token if the user logs out!
-    let mut connection = shared_data.connection.lock().unwrap();
+    let mut connection = app_state.connection.lock().unwrap();
     let user = User::get_user_by_address(&mut connection, &address);
     if user.is_err() {
         return Err(ApiErrorResponse::InvalidToken.into());

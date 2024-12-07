@@ -1,19 +1,16 @@
-use actix_web::{get, web, Responder, Result};
-use serde::Serialize;
+use actix_web::{get, web, HttpResponse, Responder, Result};
 
-#[derive(Serialize)]
-#[serde(untagged)]
-enum GetPollsResponse {
-    // Success { data: TokenPair },
-    // FIXME: As soon as diesel is integrated, use the Poll model struct!
-    Success { error: String },
-    _Error { error: String },
-}
+use crate::errors::ApiErrorResponse;
 
-#[get("/polls")]
-async fn route() -> Result<impl Responder> {
-    // Check whether signature is already present in database
-    Ok(web::Json(GetPollsResponse::Success {
-        error: "<VoteChain-API>: Not implemented yet! Hi from backend btw".to_string(),
-    }))
+#[get("/poll/{id}")]
+pub async fn route(shared_data: web::Data<crate::AppState>) -> Result<impl Responder> {
+    // match shared_data
+    //     .contract_service
+    //     .get_poll(path.into_inner())
+    //     .await
+    // {
+    //     Ok(result) => Ok(HttpResponse::Ok().json(result)),
+    //     Err(_) => Err(ApiErrorResponse::InternalServerError.into()),
+    // }
+    Ok(HttpResponse::Ok())
 }

@@ -33,7 +33,7 @@ struct SignInRequest {
 // Create secret pair struct to be used later!
 #[post("/auth/signin")]
 pub async fn route(
-    shared_data: web::Data<AppState>,
+    app_state: web::Data<AppState>,
     web::Json(data): web::Json<SignInRequest>,
 ) -> Result<impl Responder> {
     // Extract signature + account from request
@@ -71,14 +71,14 @@ pub async fn route(
     };
 
     // Generate JWT token for the user!
-    let token_pair = shared_data.jwt_manager.generate_token_pair(identity);
+    let token_pair = app_state.jwt_manager.generate_token_pair(identity);
 
     //
     // Persist data in the database
     //
 
     // Extract connection from shared_data + lock mutex
-    let mut connection = shared_data
+    let mut connection = app_state
         .connection
         .lock()
         .expect("Error getting connection");

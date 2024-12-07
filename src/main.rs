@@ -16,6 +16,7 @@ use actix_web::{
     web, App, HttpServer,
 };
 use alloy::{
+    hex::FromHex,
     primitives::Address,
     providers::{Provider, ProviderBuilder},
     transports::http::reqwest::Url,
@@ -24,9 +25,14 @@ use auth::JwtManager;
 use diesel::PgConnection;
 use log::{debug, info};
 
+struct Contracts {
+    votechain: contracts::votechain::VotechainContract,
+}
+
 pub struct AppState {
     jwt_manager: JwtManager,
     connection: Arc<Mutex<PgConnection>>,
+    contracts: Contracts,
 }
 
 #[actix_web::main]
@@ -71,13 +77,17 @@ async fn main() -> std::io::Result<()> {
     info!("Connection successful. Chain ID: {}", chain_id);
 
     // Now, build the VoteChain contract abstraction
-    let address = Address::new(&std::env::var("VOTECHAIN_CONTRACT_ADDRESS").unwrap());
-    let contract = contracts::votechain::VotechainContract::new(address, provider);
+    let address = Address::from_hex(std::env::var("VOTECHAIN_CONTRACT_ADDRESS").unwrap())
+        .expect("Invalid contract address. Ensure it is a valid hex string.");
+    let votechain_contract = contracts::votechain::VotechainContract::new(address, provider);
 
     // Build application state
     let app_state = web::Data::new(AppState {
         jwt_manager,
         connection,
+        contracts: Contracts {
+            votechain: votechain_contract,
+        },
     });
 
     // Start ActiveX web server
