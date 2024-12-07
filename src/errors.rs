@@ -27,6 +27,9 @@ pub enum ApiErrorResponse {
 
     #[display["internal server error"]]
     InternalServerError,
+
+    #[display["resource not found"]]
+    NotFound,
 }
 
 impl error::ResponseError for ApiErrorResponse {
@@ -45,6 +48,7 @@ impl error::ResponseError for ApiErrorResponse {
             ApiErrorResponse::MissingBearerToken => StatusCode::from_u16(499).unwrap(), // 499: Client closed request or missing bearer token (special code)
             ApiErrorResponse::TokenMismatch => StatusCode::from_u16(496).unwrap(), // 496: Token mismatch (special code)
             ApiErrorResponse::InternalServerError => StatusCode::INTERNAL_SERVER_ERROR, // 500: Internal server error
+            ApiErrorResponse::NotFound => StatusCode::NOT_FOUND, // 404: Resource
         }
     }
 }

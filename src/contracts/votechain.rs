@@ -73,6 +73,16 @@ impl VotechainContract {
         }
     }
 
+    pub async fn get_poll(&self, id: U256) -> Result<Poll, String> {
+        let poll = self
+            .contract
+            .polls(id)
+            .call()
+            .await
+            .expect("Failed to get poll");
+        Ok(poll.into())
+    }
+
     pub async fn get_available_polls(&self) -> Result<Vec<Poll>, String> {
         // Get total number of polls
         let wrapped_count = self
