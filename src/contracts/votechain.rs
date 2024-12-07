@@ -36,7 +36,7 @@ impl VotechainContract {
     ) -> Result<(), String> {
         let result = self
             .contract
-            .createPoll(name, description, options, start_time, end_time)
+            .create_poll(name, description, options, start_time, end_time)
             .call()
             .await;
 
@@ -46,15 +46,46 @@ impl VotechainContract {
         }
     }
 
-    pub async fn get_polls(
-        &self,
-    ) -> Result<Vec<(String, String, Vec<String>, U256, U256)>, String> {
-        // Compute current time in seconds
+    pub async fn get_available_polls(&self) -> Result<Vec<VOTECHAIN::pollsReturn>, String> {
+        // Get total number of polls
+        let wrapped_count = self
+            .contract
+            .poll_count()
+            .call()
+            .await
+            .expect("Failed to get poll count")
+            ._0;
 
-        let result = self.contract.polls().call().await;
-        match result {
-            Ok(polls) => Ok(polls),
-            Err(e) => Err(e.to_string()),
+        // convert to integer number
+        let count: u64 = wrapped_count
+            .try_into()
+            .expect("Failed to convert U256 to integer. Value is too large!");
+
+        // Initialize vector to store poll data
+        let mut polls = Vec::new();
+
+        // Iterate over all available polls
+        for i in 0..count {
+            // Get poll data
+            let poll = self
+                .contract
+                .polls(i.try_into().expect("Invaid cast"))
+                .call()
+                .await;
+            // Check if poll data is valid
+            match poll {
+                Ok(poll) => {
+                    // Append poll data to vector
+                    polls.push(poll);
+                }
+                Err(e) => {
+                    // Return error if poll data is invalid
+                    return Err(e.to_string());
+                }
+            }
         }
+
+        // Return vector of poll data
+        Ok(polls)
     }
 }
