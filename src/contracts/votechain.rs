@@ -7,6 +7,7 @@ use alloy::{
 use serde::Serialize;
 use VOTECHAIN::{pollsReturn, VOTECHAINInstance};
 
+
 // Codegen from ABI file to interact with the contract.
 sol!(
     #[allow(missing_docs)]
@@ -81,6 +82,23 @@ impl VotechainContract {
             .await
             .expect("Failed to get poll");
         Ok(poll.into())
+    }
+
+    pub async fn cast_vote(
+        &self,
+        poll_id: U256,
+        option: String,
+    ) -> Result<(), String> {
+        let result = self
+            .contract
+            .cast_vote(poll_id, option)
+            .call()
+            .await;
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e.to_string()),
+        }
     }
 
     pub async fn get_available_polls(&self) -> Result<Vec<Poll>, String> {
