@@ -1,7 +1,7 @@
 use dotenv::from_path;
 use std::env;
 
-const KEYS: [&str; 13] = [
+const KEYS: [&str; 15] = [
     "POSTGRES_HOST",
     "POSTGRES_PORT",
     "POSTGRES_USER",
@@ -15,6 +15,8 @@ const KEYS: [&str; 13] = [
     "VOTECHAIN_PORT",
     "VOTECHAIN_CONTRACT_ADDRESS",
     "CHAIN_ID",
+    "RELAY_WALLET_PRIVATE_KEY",
+    "RELAY_WALLET_ADDRESS",
 ];
 
 pub fn load_env() -> bool {
