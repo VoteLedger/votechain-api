@@ -12,12 +12,14 @@ use std::sync::{Arc, Mutex};
 
 use crate::config::load_env;
 use actix_web::{
-    middleware::{from_fn, DefaultHeaders},
+    middleware::{from_fn, DefaultHeaders, Logger},
     web, App, HttpServer,
 };
 use alloy::{
+    network::EthereumWallet,
     primitives::Address,
     providers::{Provider, ProviderBuilder},
+    signers::local::PrivateKeySigner,
     transports::http::reqwest::Url,
 };
 use auth::JwtManager;
@@ -64,12 +66,22 @@ async fn main() -> std::io::Result<()> {
     // create link with available contracts + connect to blockchain
     let rpc_url = Url::parse(&std::env::var("RPC_URL").unwrap()).unwrap();
 
-    // create provider
-    info!("Linking rpc client to Alloy...");
-    let provider = ProviderBuilder::new().on_http(rpc_url);
-
     // Get chain id from config file
     let chain_id = std::env::var("CHAIN_ID").unwrap().parse::<u64>().unwrap();
+
+    // Get wallet information from the config file
+    let srv_wallet_key = std::env::var("RELAY_WALLET_PRIVATE_KEY").unwrap();
+
+    // Create signer based on private key
+    let signer: PrivateKeySigner = srv_wallet_key.parse().expect("Invalid private key");
+    let wallet = EthereumWallet::new(signer);
+
+    // create provider + link the wallet for signing
+    info!("Linking rpc client to Alloy...");
+    let provider = ProviderBuilder::new()
+        .with_recommended_fillers()
+        .wallet(wallet)
+        .on_http(rpc_url);
 
     // Ask the chain for its chain id
     let actual_chain_id = provider
@@ -92,7 +104,8 @@ async fn main() -> std::io::Result<()> {
     let address =
         Address::parse_checksummed(std::env::var("VOTECHAIN_CONTRACT_ADDRESS").unwrap(), None)
             .expect("Invalid contract address. Ensure it is a valid hex string with checksum");
-    let votechain_contract = contracts::votechain::VotechainContract::new(address, provider);
+    let votechain_contract =
+        contracts::votechain::VotechainContract::new(address, provider.root().clone());
 
     // Build application state
     let app_state = web::Data::new(AppState {
@@ -107,6 +120,7 @@ async fn main() -> std::io::Result<()> {
     info!("Starting Actix Web server...");
     HttpServer::new(move || {
         App::new()
+            .wrap(Logger::default())
             .app_data(app_state.clone()) // pass state to entire application
             .wrap(DefaultHeaders::new().add(("X-Server", "VoteChain-API"))) // add default headers
             .wrap(from_fn(crate::middlewares::auth::ensure_auth))
@@ -117,7 +131,7 @@ async fn main() -> std::io::Result<()> {
             .service(crate::routes::polls::get_polls::route) // Route to get all available polls
             .service(crate::routes::polls::create::route) // Route to create a poll in the contract
             .service(crate::routes::polls::cast_vote::route)
-        })
+    })
     .bind(("127.0.0.1", 1234))?
     .run()
     .await

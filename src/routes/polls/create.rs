@@ -1,6 +1,6 @@
-use actix_web::{post, web, HttpResponse, Responder, Result};
+use actix_web::{cookie::time::OffsetDateTime, post, web, HttpResponse, Responder, Result};
 use alloy::primitives::U256;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::AppState;
 
@@ -9,8 +9,13 @@ struct CreatePollRequest {
     name: String,
     description: String,
     options: Vec<String>,
-    start_time: u64,
-    end_time: u64,
+    start_time: U256,
+    end_time: U256,
+}
+
+#[derive(Serialize)]
+struct CreatePollResponse {
+    poll_id: U256,
 }
 
 #[post("/polls")]
@@ -22,6 +27,11 @@ pub async fn route(
     let req = request.into_inner();
     let contract = &app_data.contracts.votechain;
 
+    // Convert the start and end times to the number of seconds since the Unix epoch.
+    // NOTE: This is necessary because the OffsetDateTime type is not directly compatible with U256.
+    // let unix_start_time = req.start_time.unix_timestamp();
+    // let unix_end_time = req.end_time.unix_timestamp();
+
     // Call the contract’s create_poll function.
     // Assuming `create_poll` returns a Result<(), ContractError> or similar.
     // Adjust the call to match your actual contract interface.
@@ -31,13 +41,13 @@ pub async fn route(
             req.name,
             req.description,
             req.options,
-            U256::from(req.start_time),
-            U256::from(req.end_time),
+            req.start_time,
+            req.end_time,
         )
         .await;
 
     match tx_result {
-        Ok(_) => Ok(HttpResponse::Ok().body("Poll created successfully")),
+        Ok(r) => Ok(HttpResponse::Ok().json(r)),
         Err(e) => {
             // Log or handle error as needed
             Ok(HttpResponse::InternalServerError().body(format!("Failed to create poll: {:?}", e)))
