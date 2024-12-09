@@ -1,6 +1,6 @@
-use actix_web::{cookie::time::OffsetDateTime, post, web, HttpResponse, Responder, Result};
+use actix_web::{post, web, HttpResponse, Responder, Result};
 use alloy::primitives::U256;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::AppState;
 
@@ -11,11 +11,6 @@ struct CreatePollRequest {
     options: Vec<String>,
     start_time: U256,
     end_time: U256,
-}
-
-#[derive(Serialize)]
-struct CreatePollResponse {
-    poll_id: U256,
 }
 
 #[post("/polls")]

@@ -1,46 +1,11 @@
-use alloy::{
-    network::{Ethereum, EthereumWallet},
-    primitives::{address, ruint::aliases::U256, Address},
-    providers::{
-        fillers::{
-            BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
-            WalletFiller,
-        },
-        Provider, ProviderBuilder, RootProvider,
-    },
-    signers::local::PrivateKeySigner,
-    sol,
-    transports::http::{reqwest::Url, Client, Http},
-};
+use alloy::primitives::{address, ruint::aliases::U256};
 use log::info;
 use serde::Serialize;
-use VOTECHAIN::{pollsReturn, VOTECHAINInstance};
 
-use crate::routes::auth::signin::Identity;
-
-// Codegen from ABI file to interact with the contract.
-sol!(
-    #[allow(missing_docs)]
-    #[sol(rpc)]
-    VOTECHAIN,
-    "contracts/abi/votechain.json"
-);
-
-type ConfiguredProvider = FillProvider<
-    JoinFill<
-        JoinFill<
-            Identity,
-            JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>,
-        >,
-        WalletFiller<EthereumWallet>,
-    >,
-    RootProvider<Http<Client>>,
-    Http<Client>,
-    Ethereum,
->;
+use crate::{VotechainContractInstance, VOTECHAIN::pollsReturn};
 
 pub struct VotechainContract {
-    contract: VOTECHAINInstance<Http<Client>, RootProvider<Http<Client>>>,
+    contract: VotechainContractInstance,
 }
 
 #[derive(Serialize)]
@@ -75,11 +40,9 @@ pub struct PollRecipt {
 }
 
 impl VotechainContract {
-    pub fn new(address: Address, provider: RootProvider<Http<Client>>) -> Self {
+    pub fn new(instance: VotechainContractInstance) -> Self {
         // Create a new instance of the contract
-        Self {
-            contract: VOTECHAIN::new(address, provider.root().clone()),
-        }
+        Self { contract: instance }
     }
 
     pub async fn create_poll(
@@ -90,17 +53,27 @@ impl VotechainContract {
         start_time: U256,
         end_time: U256,
     ) -> Result<PollRecipt, String> {
+        // Print some debug info about the poll
+        info!(
+            "Poll data: {:?}",
+            (
+                name.clone(),
+                description.clone(),
+                options.clone(),
+                start_time,
+                end_time
+            )
+        );
+
         info!("Creating poll: {}", name);
         let poll_id = self
             .contract
             .create_poll(name, description, options, start_time, end_time)
-            .from(address!("a0Ee7A142d267C1f36714E4a8F75612F20a79720"))
             .call()
             .await
             .expect("Failed to create poll")
             ._0;
-
-        info!("Poll ID: {}", poll_id.clone());
+        info!("Resulting ID: {}", poll_id.clone());
 
         // .into_transaction_request();
         // Use our provider to send the transaction

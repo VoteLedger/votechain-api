@@ -16,24 +16,56 @@ use actix_web::{
     web, App, HttpServer,
 };
 use alloy::{
-    network::EthereumWallet,
-    primitives::Address,
-    providers::{Provider, ProviderBuilder},
+    network::{Ethereum, EthereumWallet},
+    providers::{
+        fillers::{
+            BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
+            WalletFiller,
+        },
+        Identity, Provider, ProviderBuilder, RootProvider,
+    },
     signers::local::PrivateKeySigner,
-    transports::http::reqwest::Url,
+    sol,
+    transports::http::{Client, Http},
 };
+use alloy_node_bindings::Anvil;
 use auth::JwtManager;
+use contracts::votechain::VotechainContract;
 use diesel::PgConnection;
 use log::{debug, info};
-
-struct Contracts {
-    votechain: contracts::votechain::VotechainContract,
-}
 
 pub struct AppState {
     jwt_manager: JwtManager,
     connection: Arc<Mutex<PgConnection>>,
     contracts: Contracts,
+}
+
+// Codegen from ABI file to interact with the contract.
+sol!(
+    #[allow(missing_docs)]
+    #[sol(rpc)]
+    VOTECHAIN,
+    "contracts/abi/votechain.json"
+);
+
+pub type VotechainContractInstance = VOTECHAIN::VOTECHAINInstance<
+    Http<Client>,
+    FillProvider<
+        JoinFill<
+            JoinFill<
+                Identity,
+                JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>,
+            >,
+            WalletFiller<EthereumWallet>,
+        >,
+        RootProvider<Http<Client>>,
+        Http<Client>,
+        Ethereum,
+    >,
+>;
+
+struct Contracts {
+    votechain: VotechainContract,
 }
 
 #[actix_web::main]
@@ -63,25 +95,24 @@ async fn main() -> std::io::Result<()> {
     // NOTE: This is needed as we will be sharing the connection across threads
     let connection = Arc::new(Mutex::new(db::establish_connection()));
 
-    // create link with available contracts + connect to blockchain
-    let rpc_url = Url::parse(&std::env::var("RPC_URL").unwrap()).unwrap();
-
     // Get chain id from config file
     let chain_id = std::env::var("CHAIN_ID").unwrap().parse::<u64>().unwrap();
 
-    // Get wallet information from the config file
-    let srv_wallet_key = std::env::var("RELAY_WALLET_PRIVATE_KEY").unwrap();
+    // Create Anvil instance
+    let anvil = Anvil::new()
+        .block_time(1)
+        .chain_id(31337)
+        .try_spawn()
+        .expect("Failed to spawn Anvil");
+    info!("RPC URL: {}", anvil.endpoint_url());
 
-    // Create signer based on private key
-    let signer: PrivateKeySigner = srv_wallet_key.parse().expect("Invalid private key");
-    let wallet = EthereumWallet::new(signer);
+    let signer: PrivateKeySigner = anvil.keys()[0].clone().into();
+    let wallet = EthereumWallet::from(signer);
 
-    // create provider + link the wallet for signing
-    info!("Linking rpc client to Alloy...");
     let provider = ProviderBuilder::new()
         .with_recommended_fillers()
         .wallet(wallet)
-        .on_http(rpc_url);
+        .on_http(anvil.endpoint_url());
 
     // Ask the chain for its chain id
     let actual_chain_id = provider
@@ -100,12 +131,21 @@ async fn main() -> std::io::Result<()> {
         info!("Chain ID matches the one in the config file. Proceeding...");
     }
 
+    // Now, deploy the contract to the chain
+    let contract = VOTECHAIN::deploy(provider)
+        .await
+        .expect("Failed to deploy contract");
+
+    // Now, read the contract address from the deployed contract
+    let contract_address = contract.address();
+    info!("Contract deployed at address: {}", contract_address);
+
     // Now, build the VoteChain contract abstraction
-    let address =
-        Address::parse_checksummed(std::env::var("VOTECHAIN_CONTRACT_ADDRESS").unwrap(), None)
-            .expect("Invalid contract address. Ensure it is a valid hex string with checksum");
-    let votechain_contract =
-        contracts::votechain::VotechainContract::new(address, provider.root().clone());
+    // let address =
+    //     Address::parse_checksummed(std::env::var("VOTECHAIN_CONTRACT_ADDRESS").unwrap(), None)
+    //         .expect("Invalid contract address. Ensure it is a valid hex string with checksum");
+
+    let votechain_contract = contracts::votechain::VotechainContract::new(contract);
 
     // Build application state
     let app_state = web::Data::new(AppState {
