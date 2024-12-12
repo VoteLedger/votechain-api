@@ -8,7 +8,10 @@ mod models;
 mod routes;
 mod schema;
 
-use std::sync::{Arc, Mutex};
+use std::{
+    str::FromStr,
+    sync::{Arc, Mutex},
+};
 
 use crate::config::load_env;
 use actix_web::{
@@ -17,6 +20,7 @@ use actix_web::{
 };
 use alloy::{
     network::{Ethereum, EthereumWallet},
+    primitives::Address,
     providers::{
         fillers::{
             BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
@@ -24,9 +28,9 @@ use alloy::{
         },
         Identity, Provider, ProviderBuilder, RootProvider,
     },
-    signers::local::PrivateKeySigner,
+    signers::local::{LocalSigner, PrivateKeySigner},
     sol,
-    transports::http::{Client, Http},
+    transports::http::{reqwest::Url, Client, Http},
 };
 use alloy_node_bindings::Anvil;
 use auth::JwtManager;
@@ -98,21 +102,20 @@ async fn main() -> std::io::Result<()> {
     // Get chain id from config file
     let chain_id = std::env::var("CHAIN_ID").unwrap().parse::<u64>().unwrap();
 
-    // Create Anvil instance
-    let anvil = Anvil::new()
-        .block_time(1)
-        .chain_id(31337)
-        .try_spawn()
-        .expect("Failed to spawn Anvil");
-    info!("RPC URL: {}", anvil.endpoint_url());
+    // Get RPC endpoint from config file
+    let rpc_endpoint = std::env::var("RPC_URL").unwrap();
+    // Now, create address from the endpoint
+    let rpc_address = Url::from_str(&rpc_endpoint).expect("Invalid RPC endpoint");
 
-    let signer: PrivateKeySigner = anvil.keys()[0].clone().into();
+    let signer: PrivateKeySigner =
+        LocalSigner::from_str(&std::env::var("RELAY_WALLET_PRIVATE_KEY").unwrap())
+            .expect("Invalid private key");
     let wallet = EthereumWallet::from(signer);
 
     let provider = ProviderBuilder::new()
         .with_recommended_fillers()
         .wallet(wallet)
-        .on_http(anvil.endpoint_url());
+        .on_http(rpc_address);
 
     // Ask the chain for its chain id
     let actual_chain_id = provider
@@ -131,21 +134,15 @@ async fn main() -> std::io::Result<()> {
         info!("Chain ID matches the one in the config file. Proceeding...");
     }
 
-    // Now, deploy the contract to the chain
-    let contract = VOTECHAIN::deploy(provider)
-        .await
-        .expect("Failed to deploy contract");
+    // Load the contract address from the .env
+    let contract_address =
+        Address::parse_checksummed(std::env::var("VOTECHAIN_CONTRACT_ADDRESS").unwrap(), None)
+            .expect("Invalid contract address. Ensure it is a valid hex string with checksum");
 
-    // Now, read the contract address from the deployed contract
-    let contract_address = contract.address();
-    info!("Contract deployed at address: {}", contract_address);
-
-    // Now, build the VoteChain contract abstraction
-    // let address =
-    //     Address::parse_checksummed(std::env::var("VOTECHAIN_CONTRACT_ADDRESS").unwrap(), None)
-    //         .expect("Invalid contract address. Ensure it is a valid hex string with checksum");
-
-    let votechain_contract = contracts::votechain::VotechainContract::new(contract);
+    // get the contract instance
+    let contract_instance = VOTECHAIN::new(contract_address, provider);
+    // wrap instance in our contract struct to access useful information
+    let votechain_contract = contracts::votechain::VotechainContract::new(contract_instance);
 
     // Build application state
     let app_state = web::Data::new(AppState {
