@@ -32,7 +32,6 @@ use alloy::{
     sol,
     transports::http::{reqwest::Url, Client, Http},
 };
-use alloy_node_bindings::Anvil;
 use auth::JwtManager;
 use contracts::votechain::VotechainContract;
 use diesel::PgConnection;
